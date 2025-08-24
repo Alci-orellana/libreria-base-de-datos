@@ -1,0 +1,74 @@
+-- VISTAS
+CREATE VIEW Vista_Ventas_Por_Sucursal AS
+SELECT s.nombre AS sucursal, COUNT(v.id_venta) AS total_ventas
+FROM VENTA v
+JOIN SUCURSAL s ON v.id_sucursal = s.id_sucursal
+GROUP BY s.nombre;
+
+CREATE VIEW Vista_Ventas_Por_Genero AS
+SELECT g.nombre_genero AS genero, SUM(v.cant_libros) AS total_vendidos
+FROM VENTA v
+JOIN LIBRO l ON v.id_libro = l.id_libro
+JOIN GENERO g ON l.id_genero = g.id_genero
+GROUP BY g.nombre_genero;
+
+CREATE VIEW Vista_Top_Clientes AS
+SELECT c.nombre, SUM(v.cant_libros) AS total_comprados
+FROM VENTA v
+JOIN CLIENTE c ON v.id_cliente = c.id_cliente
+GROUP BY c.nombre
+ORDER BY total_comprados DESC; 
+
+-- FUNCIONES
+DELIMITER //
+CREATE FUNCTION TotalGastadoPorCliente(idCliente INT) RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE total DECIMAL(10,2);
+    SELECT SUM(v.cant_libros * l.precio)
+    INTO total
+    FROM VENTa v
+    JOIN LIBRO l ON v.id_libro = l.id_libro
+    WHERE v.id_cliente = idCliente;
+    RETURN IFNULL(total,0);
+END //
+DELIMITER ;
+
+DELIMITER //
+CREATE FUNCTION LibrosVendidosSucursal(idSucursal INT) RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE total INT;
+    SELECT SUM(cant_libros) INTO total
+    FROM VENTA
+    WHERE id_sucursal = idSucursal;
+    RETURN IFNULL(total,0);
+END //
+DELIMITER ;
+
+-- STORED PROCEDURE
+DELIMITER //
+CREATE PROCEDURE RegistrarVenta(
+    IN p_idCliente INT,
+    IN p_idLibro INT,
+    IN p_idSucursal INT,
+    IN p_cantLibros INT
+)
+BEGIN
+    INSERT INTO VENTA (id_cliente, id_libro, id_sucursal, fecha_venta, cant_libros)
+    VALUES (p_idCliente, p_idLibro, p_idSucursal, CURDATE(), p_cantLibros);
+END //
+DELIMITER ;
+
+-- TRIGGER
+DELIMITER //
+CREATE TRIGGER trg_validar_cantidad
+BEFORE INSERT ON VENTA
+FOR EACH ROW
+BEGIN
+    IF NEW.cant_libros <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'La cantidad de libros debe ser mayor a 0';
+    END IF;
+END //
+DELIMITER ;
